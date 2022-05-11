@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon May  9 11:39:47 2022
+
+@author: sshandu
+"""
+
+# This Python 3 environment comes with many helpful analytics libraries installed
+# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
+# For example, here's several helpful packages to load
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+## Importing the required data analysis libraries
+import matplotlib.pyplot as plt
+import seaborn as sns
+import warnings
+warnings.filterwarnings('ignore')
+
+## Libraries for Training the dataset
+from sklearn.linear_model import  Ridge, Lasso, LinearRegression
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+# from lightgbm import LGBMRegressor
+from sklearn.metrics import r2_score,mean_absolute_error,mean_squared_error
+
+# Imprtiiing Libraries for dataset splitting
+from sklearn.model_selection import train_test_split 
+
+## Library for Scaling the data
+from sklearn.preprocessing import StandardScaler
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+#%%
+###Exploring the dataset
+df = pd.read_csv('//Users/sshandu/Desktop/MECN7118A-MachineLearning/Assignment1/motorTempPredict/measures_v2.csv')
+# to see the number of rows and columns in the data set
+print(df.shape)
+
+# showing the first few rows and columns of the dataset
+print(df.head())
+
+## Rearranging the columns for better visualization 
+df = df[['u_q','coolant','stator_winding','stator_tooth','stator_yoke','u_d','motor_speed','i_d','i_q','ambient','torque','profile_id','pm']]
+
+## Checking the null values
+print(df.isnull().sum())
+
+## Checking the datatype of each variable (can use print functionto display dat if not you iPython)
+print(df.dtypes)
+print(df.info())
+##checking the unique values in each column
+print(df.nunique())
+##checking the duplicate values in the data
+print(df.duplicated().sum())
+#%%
+
+# seperate the code blocks and make reference on the report.
+#%%
+##Checking the stats of the data
+print(df.describe().transpose())
+print(df.head(5))
+print(df.columns)
+print(df.iloc[:2,:14].values )
+
+'''' Analysis from above data
+1 it can be seen that minimum value of pm is 20.85
+2 25% of the data lie below pm = 43.15
+3 50% of the data lie below pm = 60.266
+4 75% of the data lie below pm = 72.00
+5 max value of pm is 113.60'''
+
+# above 200000 points is enough to to cover the bulk of possible features. 
+#%%
+
+#%%
+#  Perfomraning EDA , i.e. Univariate analysis 
+for i in df.columns:
+    df[i].plot(kind='hist')
+    plt.title(f'Distribution of {i}')
+    plt.show()
+#%%
+df['profile_id'].value_counts().sort_values().plot(kind='bar',figsize= (16,8)) # have to comment out this line to see the plots below and visa versa
+
+'''' we can see that profile_id 65,6 and 20 has maximum numbers of measurement recorded..'''
+## As we can see that profile_id == 20 has maximum numbers of measurement recorded at different timestamps
+## As author of the data says the stator variable is a intersting one, so analyzing it at profile_id == 20
+
+df[df['profile_id']== 20]['stator_winding'].plot(label = 'stator_winding',figsize = (14,6))
+df[df['profile_id'] == 20]['stator_yoke'].plot(label = 'stator_yoke',figsize = (14,6))
+df[df['profile_id'] == 20]['stator_tooth'].plot(label = 'stator_tooth',figsize = (14,6))
+plt.legend()
+
+'''we can see the variation in stator temperature at different time at profile_id == 20
+All the three stator's variable follows the same trend at different timestamp.'''
+#%%
+
+#%%
+### Lets analyze the all variable effect on dependent variable pm (Bivariate Analysis)
+figure,axes = plt.subplots(nrows=2,ncols=3,figsize=(16,10))
+sns.scatterplot(data=df,x = 'coolant', y = 'pm',ax=axes[0,0])
+sns.scatterplot(data=df,x = 'ambient', y = 'pm',ax=axes[0,1])
+sns.scatterplot(data=df,x = 'motor_speed', y = 'pm',ax=axes[0,2])
+sns.scatterplot(data=df,x = 'i_d', y = 'pm',ax=axes[1,0])
+sns.scatterplot(data=df,x = 'i_q', y = 'pm',ax=axes[1,1])
+sns.scatterplot(data=df,x = 'u_d', y = 'pm',ax=axes[1,2])
+#%%
+
+#%%
+# checking correlation
+df_corr=df.corr()
+df_corr['pm']
+
+'''' we can see that stator_winding,stator_tooth,stator_yoke are highly positive correlated with pm '''
+
+## ploting the correlation
+plt.figure(figsize=(14,8))
+sns.heatmap(df_corr,annot=True,cmap='viridis')
+#%%
+
+#%%
+### Building the model
+## As profile_id is not important because it tells the uniqueness of session only,not so important in prediction.
+## so we can drop it
+df.drop('profile_id',axis=1,inplace=True)
+print(df.head())
+
+## Separating the features and labels
+x = df.drop('pm',axis=1)   ## independent feature
+y = df['pm']  ## dependent feature
+
+# spliting the data for training and testing 
+x_train,x_test,y_train,y_test = train_test_split(x,y,test_size=0.2,random_state=1000)
+#%%
+
+#%%
+
+## Scaling the data
+scaler = StandardScaler()
+x_train_scaled = scaler.fit_transform(x_train)
+x_test_scaled = scaler.transform(x_test)
+#%%
+
+#%%
+
+# Creating the python predcit function 
+def predict(model):
+    # Define Models Name
+    print('Model: {}'.format(model))
+    ## fitting the model
+    model.fit(x_train_scaled,y_train)
+    ## predicting the value
+    y_pred = model.predict(x_test_scaled)
+    print('R2 score',r2_score(y_test,y_pred))
+    print('MAE',mean_absolute_error(y_test,y_pred))
+    print('RMSE:{}'.format(np.sqrt(mean_squared_error(y_test,y_pred))))
+    sns.distplot(y_test-y_pred)
+
+# using liner regression 
+predict(LinearRegression())
+
+# using Ridge Regression 
+predict(Ridge())
+
+#using Lassso 
+predict(Lasso())
+
+#using KNeigbhor
+predict(KNeighborsRegressor())
+
+#using  Decision Tree
+predict(DecisionTreeRegressor())
+
+
+'''' From the above observations we can see that:¶
+Decision Tree and KNN regressor gives r2 score 0.99 but by seeing the graph we can see that there is
+chance of overfitting, however between KNN and Decision Tree is a better model as the RMSE is below 1
+whereas KNN is above 1, clearly indicating overfitting. The option to improve KNN would be Hyperparameter 
+tuning but, beyond the scope of this document, since the Decision Tree is a reasoanable enough model'''
+
+#%%
+
+#%%
+## DecisionTreeRegressor taken for the predictions 
+
+model = DecisionTreeRegressor()
+model.fit(x_train_scaled,y_train)
+y_pred = model.predict(x_test)
+
+print(y_pred)  ## These are predicted values
+x_test['predicted_temperature'] = y_pred
+print(x_test.head(100))
+#%%
+
